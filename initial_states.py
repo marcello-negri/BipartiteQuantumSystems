@@ -232,6 +232,129 @@ def two_species_piqs_mesolve (N1, N2, initial_state_1, initial_state_2,
     return rhot
 
 
+def two_species_piqs_expected (N1, N2, initial_state_1, initial_state_2,
+                              nphot=None, gce=0.5, gcd=0.5, gcp=0.5,
+                              w01=1., wx1=0.1, ge1=0.5, gd1=0.5, gp1=0.5,
+                              w02=1., wx2=0.1, ge2=0.5, gd2=0.5, gp2=0.5,
+                              wc=1, k=1, wp=0.1, g1=10, g2=20, plot=False):
+
+    # Ensemble of N1 TLSs
+    system1 = piqs.Dicke(N = N1)
+
+    [jx1, jy1, jz1] = piqs.jspin(N1)
+    jp1 = piqs.jspin(N1, op='+')
+    jm1 = piqs.jspin(N1, op='-')
+
+    h_tls1 = w01 * jz1 + wx1 * jx1
+    system1.hamiltonian = h_tls1
+    system1.emission = ge1
+    system1.dephasing = gd1
+    system1.pumping = gp1
+
+    L_tls1 = system1.liouvillian()
+
+    # Ensemble of N2 TLSs
+    system2 = piqs.Dicke(N = N2)
+
+    [jx2, jy2, jz2] = piqs.jspin(N2)
+    jp2 = piqs.jspin(N2, op='+')
+    jm2 = piqs.jspin(N2, op='-')
+
+    h_tls2 = w02 * jz2 + wx2 * jx2
+    system2.hamiltonian = h_tls2
+    system2.emission = ge2
+    system2.dephasing = gd2
+    system2.pumping = gp2
+
+    L_tls2 = system2.liouvillian()
+
+    # Identity super-operators
+    nds1 = piqs.num_dicke_states(N1)
+    nds2 = piqs.num_dicke_states(N2)
+    id_1 = qeye(nds1)
+    id_2 = qeye(nds2)
+    id_tls1 = to_super(qeye(nds1))
+    id_tls2 = to_super(qeye(nds2))
+
+    # Total hamiltonian
+    jz_1_jz_2 = tensor(jz1, id_2) + tensor(id_1, jz2)
+    jp_1_jp_2 = tensor(jp1, id_2) + tensor(id_1, jp2)
+    jm_1_jm_2 = tensor(jm1, id_2) + tensor(id_1, jm2)
+    jx_1_jx_2 = tensor(jx1, id_2) + tensor(id_1, jx2)
+    jy_1_jy_2 = tensor(jy1, id_2) + tensor(id_1, jy2)
+
+    jz1_tot = tensor(jz1, id_2)
+    jz2_tot = tensor(id_1, jz2)
+    jp1_tot = tensor(jp1, id_2)
+    jp2_tot = tensor(id_1, jp2)
+    jm1_tot = tensor(jm1, id_2)
+    jm2_tot = tensor(id_1, jm2)
+    jx1_tot = tensor(jx1, id_2)
+    jx2_tot = tensor(id_1, jx2)
+    jy1_tot = tensor(jy1, id_2)
+    jy2_tot = tensor(id_1, jy2)
+
+    h_loc = tensor(h_tls1, id_2) + tensor(id_1, h_tls2)
+
+    # Total Liouvillian for local operators
+    L_loc = super_tensor(L_tls1, id_tls2) + super_tensor(id_tls1, L_tls2)
+    L_col = liouvillian(h_loc, [np.sqrt(gce)*jm_1_jm_2, np.sqrt(gcd)*jz_1_jz_2, np.sqrt(gcp)*jp_1_jp_2])
+    #L_col = liouvillian(h_loc, [np.sqrt(gce)*jp, np.sqrt(gcd)*jm1_tot, np.sqrt(gcp)*jm2_tot])
+    L_tls = L_col + L_loc
+    L_tot = L_tls
+
+    # Initial state and time evolution
+    rho0_tls1 = initial_state_1
+    rho0_tls2 = initial_state_2
+    rho0_tls = tensor(rho0_tls1, rho0_tls2)
+    rho0 = rho0_tls
+
+    if nphot:
+        #a = destroy(nphot)
+        #h_int = g1 * tensor(jx, a + a.dag())
+
+        a = destroy(nphot)
+        h_int1 = g1 * (tensor(jp1_tot, a.dag()) + tensor(jm1_tot, a))
+        h_int2 = g2 * (tensor(jm2_tot, a.dag()) + tensor(jp2_tot, a))
+        h_int = h_int1 + h_int2
+
+        # Photonic Liouvillian
+        c_ops_phot = [np.sqrt(k) * a, np.sqrt(wp) * a.dag()]
+        L_phot = liouvillian(wc * a.dag()*a , c_ops_phot)
+
+        id_tls = to_super(tensor(id_1, id_2))
+        id_phot = to_super(qeye(nphot))
+
+        # Define the total Liouvillian
+        L_int = -1j* spre(h_int) + 1j* spost(h_int)
+        L_tot = L_int + super_tensor(id_tls, L_phot) + super_tensor(L_tls, id_phot)
+
+        ground_phot = ket2dm(basis(nphot,0))
+        rho0 = tensor(rho0_tls, ground_phot)
+
+        jz_1_jz_2 = tensor(jz_1_jz_2, qeye(nphot))
+        jm_1_jm_2 = tensor(jm_1_jm_2, qeye(nphot))
+        jp_1_jp_2 = tensor(jp_1_jp_2, qeye(nphot))
+        jx_1_jx_2 = tensor(jx_1_jx_2, qeye(nphot))
+        jy_1_jy_2 = tensor(jy_1_jy_2, qeye(nphot))
+
+        jz1_tot = tensor(jz1_tot, qeye(nphot))
+        jz2_tot = tensor(jz2_tot, qeye(nphot))
+        jx1_tot = tensor(jx1_tot, qeye(nphot))
+        jx2_tot = tensor(jx2_tot, qeye(nphot))
+        jy1_tot = tensor(jy1_tot, qeye(nphot))
+        jy2_tot = tensor(jy2_tot, qeye(nphot))
+
+    t = np.linspace(0, 5, 1000)
+    jops = [jz_1_jz_2,jx_1_jx_2,jy_1_jy_2,jz1_tot,jz2_tot,jx1_tot,jx2_tot,jy1_tot,jy2_tot]
+
+    result = mesolve(L_tot, rho0, t, [], e_ops=jops)
+    rhot = result.states
+    exp = result.expect
+
+    return exp
+
+
 def two_species_qutip_mesolve (N1, N2, initial_state_1, initial_state_2,
                               nphot=None, gce=0.5, gcd=0.5, gcp=0.5,
                               w01=1., wx1=0.1, ge1=0.5, gd1=0.5, gp1=0.5,
@@ -332,6 +455,120 @@ def two_species_qutip_mesolve (N1, N2, initial_state_1, initial_state_2,
     rhot = result.states
 
     return rhot
+
+
+
+def two_species_qutip_expected (N1, N2, initial_state_1, initial_state_2,
+                              nphot=None, gce=0.5, gcd=0.5, gcp=0.5,
+                              w01=1., wx1=0.1, ge1=0.5, gd1=0.5, gp1=0.5,
+                              w02=1., wx2=0.1, ge2=0.5, gd2=0.5, gp2=0.5,
+                              wc=1, k=1, wp=0.1, g1=10, g2=20, plot=False):
+
+    # Ensamble of N1 TLSs
+    [jx1, jy1, jz1] = piqs.jspin(N1, basis="uncoupled")
+    jm1 = piqs.jspin(N1, op='-', basis="uncoupled")
+    jp1 = piqs.jspin(N1, op='+', basis="uncoupled")
+
+    h_tls1 = w01 * jz1 + wx1 * jx1
+
+    cops_local1 = piqs.collapse_uncoupled(N = N1, emission = ge1,
+                                     pumping = gp1, dephasing = gd1)
+
+    L_tls1 = liouvillian(h_tls1, cops_local1)
+
+    # Ensamble of N2 TLSs
+    [jx2, jy2, jz2] = piqs.jspin(N2, basis="uncoupled")
+    jm2 = piqs.jspin(N2, op='-', basis="uncoupled")
+    jp2 = piqs.jspin(N2, op='+', basis="uncoupled")
+
+    h_tls2 = w02 * jz2 + wx2 * jx2
+
+    cops_local2 = piqs.collapse_uncoupled(N = N2, emission = ge2,
+                                     pumping = gp2, dephasing = gd2)
+
+    L_tls2 = liouvillian(h_tls2, cops_local2)
+
+    # Identity super-operators
+    id_1 = qeye(jz1.dims[0]) # qeye(2**N1) has incompatbile dimensions: e.g.
+    id_2 = qeye(jz2.dims[0]) # dims = [[2],[2]] vs dims = [[2,2],[2,2]]
+    id_tls1 = to_super(id_1)
+    id_tls2 = to_super(id_2)
+
+    jz_1_jz_2 = tensor(jz1, id_2) + tensor(id_1, jz2)
+    jp_1_jp_2 = tensor(jp1, id_2) + tensor(id_1, jp2)
+    jm_1_jm_2 = tensor(jm1, id_2) + tensor(id_1, jm2)
+    jx_1_jx_2 = tensor(jx1, id_2) + tensor(id_1, jx2)
+    jy_1_jy_2 = tensor(jy1, id_2) + tensor(id_1, jy2)
+
+    jz1_tot = tensor(jz1, id_2)
+    jz2_tot = tensor(id_1, jz2)
+    jp1_tot = tensor(jp1, id_2)
+    jp2_tot = tensor(id_1, jp2)
+    jm1_tot = tensor(jm1, id_2)
+    jm2_tot = tensor(id_1, jm2)
+    jx1_tot = tensor(jx1, id_2)
+    jx2_tot = tensor(id_1, jx2)
+    jy1_tot = tensor(jy1, id_2)
+    jy2_tot = tensor(id_1, jy2)
+
+    h_loc = tensor(h_tls1, id_2) + tensor(id_1, h_tls2)
+
+    # Total Liouvillian for local operators
+    L_loc = super_tensor(L_tls1, id_tls2) + super_tensor(id_tls1, L_tls2)
+    L_col = liouvillian(h_loc, [np.sqrt(gce)*jm_1_jm_2, np.sqrt(gcd)*jz_1_jz_2, np.sqrt(gcp)*jp_1_jp_2])
+    L_tls = L_col + L_loc
+    L_tot = L_tls
+
+    # Time integration (use 'mesolve()' in full 4^N Liouvillian space)
+    rho0_tls1 = initial_state_1
+    rho0_tls2 = initial_state_2
+    rho0_tls = tensor(rho0_tls1, rho0_tls2)
+    rho0 = rho0_tls
+
+    if nphot:
+        #a = destroy(nphot)
+        #h_int = g1 * tensor(jx, a + a.dag())
+
+        a = destroy(nphot)
+        h_int1 = g1 * (tensor(jp1_tot, a.dag()) + tensor(jm1_tot, a))
+        h_int2 = g2 * (tensor(jm2_tot, a.dag()) + tensor(jp2_tot, a))
+        h_int = h_int1 + h_int2
+
+        # Photonic Liouvillian
+        c_ops_phot = [np.sqrt(k) * a, np.sqrt(wp) * a.dag()]
+        L_phot = liouvillian(wc * a.dag()*a , c_ops_phot)
+
+        id_tls = to_super(tensor(id_1, id_2))
+        id_phot = to_super(qeye(nphot))
+
+        # Define the total Liouvillian
+        L_int = -1j* spre(h_int) + 1j* spost(h_int)
+        L_tot = L_int + super_tensor(id_tls, L_phot) + super_tensor(L_tls, id_phot)
+
+        ground_phot = ket2dm(basis(nphot,0))
+        rho0 = tensor(rho0_tls, ground_phot)
+
+        jz_1_jz_2 = tensor(jz_1_jz_2, qeye(nphot))
+        jx_1_jx_2 = tensor(jx_1_jx_2, qeye(nphot))
+        jy_1_jy_2 = tensor(jy_1_jy_2, qeye(nphot))
+
+        jz1_tot = tensor(jz1_tot, qeye(nphot))
+        jz2_tot = tensor(jz2_tot, qeye(nphot))
+        jx1_tot = tensor(jx1_tot, qeye(nphot))
+        jx2_tot = tensor(jx2_tot, qeye(nphot))
+        jy1_tot = tensor(jy1_tot, qeye(nphot))
+        jy2_tot = tensor(jy2_tot, qeye(nphot))
+
+    t = np.linspace(0, 5, 1000)
+
+    jops = [jz_1_jz_2,jx_1_jx_2,jy_1_jy_2,jz1_tot,jz2_tot,jx1_tot,jx2_tot,jy1_tot,jy2_tot]
+
+    result = mesolve(L_tot, rho0, t, [], e_ops=jops)
+    rhot = result.states
+    exp = result.expect
+
+    return exp
+
 
 
 def plot_times(functions_main, inputs_main, functions_sec=None, inputs_sec=None, repeats=3,
