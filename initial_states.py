@@ -76,7 +76,7 @@ def one_species_piqs_mesolve (N, initial_state, nphot=None, w0=1., wx=0.1,
 
     # Time integration (use 'mesolve()'in Dicke basis Liouvillian space)
     t = np.linspace(0, 20, 1000)
-    result = mesolve(L_tot, rho0, t, [])
+    result = mesolve(L_tot, rho0, t, [], options=Options(atol=1e-15,rtol=1e-15))
     rhot = result.states
 
     return rhot
@@ -123,7 +123,7 @@ def one_species_qutip_mesolve (N, initial_state, nphot=None, w0=1., wx=0.1,
         rho0 = tensor(ground_phot, rho0_tls)
 
     t = np.linspace(0, 20, 1000)
-    result = mesolve(L_tot, rho0, t, [])
+    result = mesolve(L_tot, rho0, t, [], options=Options(atol=1e-15,rtol=1e-15))
     rhot = result.states
 
     return rhot
@@ -226,7 +226,7 @@ def two_species_piqs_mesolve (N1, N2, initial_state_1, initial_state_2,
         rho0 = tensor(rho0_tls, ground_phot)
 
     t = np.linspace(0, 5, 1000)
-    result = mesolve(L_tot, rho0, t, [])
+    result = mesolve(L_tot, rho0, t, [], options=Options(atol=1e-15,rtol=1e-15))
     rhot = result.states
 
     return rhot
@@ -348,7 +348,7 @@ def two_species_piqs_expected (N1, N2, initial_state_1, initial_state_2,
     t = np.linspace(0, 5, 1000)
     jops = [jz_1_jz_2,jx_1_jx_2,jy_1_jy_2,jz1_tot,jz2_tot,jx1_tot,jx2_tot,jy1_tot,jy2_tot]
 
-    result = mesolve(L_tot, rho0, t, [], e_ops=jops)
+    result = mesolve(L_tot, rho0, t, [], e_ops=jops, options=Options(atol=1e-15,rtol=1e-15))
     rhot = result.states
     exp = result.expect
 
@@ -451,7 +451,7 @@ def two_species_qutip_mesolve (N1, N2, initial_state_1, initial_state_2,
         rho0 = tensor(rho0_tls, ground_phot)
 
     t = np.linspace(0, 5, 1000)
-    result = mesolve(L_tot, rho0, t, [])
+    result = mesolve(L_tot, rho0, t, [], options=Options(atol=1e-15,rtol=1e-15))
     rhot = result.states
 
     return rhot
@@ -563,7 +563,7 @@ def two_species_qutip_expected (N1, N2, initial_state_1, initial_state_2,
 
     jops = [jz_1_jz_2,jx_1_jx_2,jy_1_jy_2,jz1_tot,jz2_tot,jx1_tot,jx2_tot,jy1_tot,jy2_tot]
 
-    result = mesolve(L_tot, rho0, t, [], e_ops=jops)
+    result = mesolve(L_tot, rho0, t, [], e_ops=jops, options=Options(atol=1e-15,rtol=1e-15))
     rhot = result.states
     exp = result.expect
 
