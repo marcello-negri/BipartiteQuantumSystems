@@ -1,0 +1,1 @@
+The scripts run_matrix.py and run_mesolve.py are used to run the simulations meant to compare PIQS and QuTiP in terms of building the matrices of the master equation and solve the differential equation, respectively. Results are reported in the subfolder.
